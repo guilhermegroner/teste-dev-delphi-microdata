@@ -1,0 +1,126 @@
+DESAFIO SQL
+-- Utilizei Firebird 3.0
+-> Desafio 1
+
+-- Criação da tabela Clientes
+CREATE TABLE Clientes (
+    IDCliente INTEGER NOT NULL PRIMARY KEY,
+    Nome VARCHAR(100) NOT NULL,
+    Email VARCHAR(100)
+);
+
+-- Criação da tabela Pedidos
+CREATE TABLE Pedidos (
+    IDPedido INTEGER NOT NULL PRIMARY KEY,
+    IDCliente INTEGER NOT NULL,
+    DataPedido DATE NOT NULL,
+    ValorTotal DECIMAL(10, 2),
+    CONSTRAINT FK_Pedidos_Clientes FOREIGN KEY (IDCliente)
+        REFERENCES Clientes (IDCliente)
+        ON DELETE CASCADE
+);
+
+-- Criação da tabela ItensPedido
+CREATE TABLE ItensPedido (
+    IDItem INTEGER NOT NULL PRIMARY KEY,
+    IDPedido INTEGER NOT NULL,
+    Produto VARCHAR(100) NOT NULL,
+    Quantidade INTEGER NOT NULL,
+    PrecoUnitario DECIMAL(10, 2),
+    CONSTRAINT FK_ItensPedido_Pedidos FOREIGN KEY (IDPedido)
+        REFERENCES Pedidos (IDPedido)
+        ON DELETE CASCADE
+);
+
+-- Inserção de dados na tabela Clientes
+INSERT INTO Clientes (IDCliente, Nome, Email) VALUES (1, 'Guilherme Groner', 'guilherme@example.com');
+INSERT INTO Clientes (IDCliente, Nome, Email) VALUES (2, 'João da Silva Neto', 'joao@example.com');
+
+-- Inserção de dados na tabela Pedidos
+INSERT INTO Pedidos (IDPedido, IDCliente, DataPedido, ValorTotal) VALUES (1, 1, '2024-09-22', 200.00);
+INSERT INTO Pedidos (IDPedido, IDCliente, DataPedido, ValorTotal) VALUES (2, 1, '2024-08-04', 250.00);
+INSERT INTO Pedidos (IDPedido, IDCliente, DataPedido, ValorTotal) VALUES (3, 2, '2024-07-06', 320.00);
+
+-- Inserção de dados na tabela ItensPedido
+INSERT INTO ItensPedido (IDItem, IDPedido, Produto, Quantidade, PrecoUnitario) VALUES (1, 1, 'Produto A', 3, 50.00);
+INSERT INTO ItensPedido (IDItem, IDPedido, Produto, Quantidade, PrecoUnitario) VALUES (2, 1, 'Produto B', 1, 50.00);
+INSERT INTO ItensPedido (IDItem, IDPedido, Produto, Quantidade, PrecoUnitario) VALUES (3, 2, 'Produto C', 5, 50.00);
+INSERT INTO ItensPedido (IDItem, IDPedido, Produto, Quantidade, PrecoUnitario) VALUES (4, 3, 'Produto D', 2, 15.00);
+
+-> Desafio 2
+SELECT 
+    C.Nome AS Nome_Cliente,
+    P.DataPedido AS Data_Pedido,
+    P.ValorTotal AS Valor_Total,
+    (SELECT COUNT(P2.IDPedido)
+     FROM Pedidos P2
+     WHERE P2.IDCliente = P.IDCliente 
+       AND P2.DataPedido <= P.DataPedido) AS Total_Pedidos_Ate_Data
+FROM Clientes C
+INNER JOIN Pedidos P ON C.IDCliente = P.IDCliente
+ORDER BY C.Nome, P.DataPedido;
+
+-> Desafio 3
+--Criando procedure
+SET TERM ^^ ;
+
+CREATE PROCEDURE ExcluirPedido (
+    PedidoID INTEGER
+)
+RETURNS (
+    Mensagem VARCHAR(50)
+)
+AS
+BEGIN
+    -- Exclui o pedido, o que também exclui os itens associados devido ao ON DELETE CASCADE
+    DELETE FROM Pedidos
+    WHERE IDPedido = :PedidoID;
+
+    Mensagem = 'Lançamentos removidos com sucesso';
+
+    SUSPEND;
+END ^^
+
+SET TERM ; ^^
+
+--Exemplo de uso
+EXECUTE PROCEDURE ExcluirPedido(1);
+
+-> Desafio 4
+--Cria function
+  CREATE OR ALTER FUNCTION FN_PEDIDOSCLIENTE (
+        ClienteID INTEGER
+    )
+  RETURNS INTEGER
+   AS
+   BEGIN
+    -- Limpa a tabela de resultados(opcional)
+    DELETE FROM ResultadosPedidos;
+
+    -- Insere os pedidos e itens do cliente na tabela de resultados
+    INSERT INTO ResultadosPedidos (IDPedido, DataPedido, Produto, Quantidade, PrecoUnitario, Subtotal)
+    SELECT 
+        P.IDPedido,
+        P.DataPedido,
+        I.Produto,
+        I.Quantidade,
+        I.PrecoUnitario,
+        I.Quantidade * I.PrecoUnitario AS Subtotal
+    FROM 
+        Pedidos P
+    JOIN 
+        ItensPedido I ON P.IDPedido = I.IDPedido
+    WHERE 
+        P.IDCliente = :ClienteID;
+
+    RETURN ROW_COUNT;
+   END;
+
+--Como utilizar
+-- Substitua 1 pelo ID do cliente desejado
+SELECT fn_PedidosCliente(2);
+
+-- Consulta a tabela de resultados
+SELECT * FROM ResultadosPedidos;
+
+
